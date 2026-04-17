@@ -24,7 +24,7 @@ import type {
 const STORAGE_KEY = 'bible-study-webapp-state'
 
 const defaultAppState: AppState = {
-  activeTab: 'read',
+  activeTab: 'home',
   bookmarks: [],
   recentPassages: [],
   reader: {
@@ -558,7 +558,7 @@ function App() {
       ...prev,
       bookmarks: prev.bookmarks ?? [],
       recentPassages: prev.recentPassages ?? [],
-      activeTab: 'read',
+      activeTab: 'home',
       reader: {
         ...prev.reader,
         isFocusMode: !prev.reader.isFocusMode,

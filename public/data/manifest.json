@@ -1,24 +1,41 @@
 {
   "resources": [
-    { "id": "krv", "name": "개역개정 샘플", "type": "bible" },
-    { "id": "easy", "name": "쉬운성경 샘플", "type": "bible" },
-    { "id": "mcd", "name": "맥도날드 주석 샘플", "type": "commentary" }
+    {
+      "id": "easy",
+      "name": "쉬운성경 샘플",
+      "type": "bible"
+    },
+    {
+      "id": "krv",
+      "name": "개역개정 샘플",
+      "type": "bible"
+    },
+    {
+      "id": "mcd",
+      "name": "맥도날드 주석 샘플",
+      "type": "commentary"
+    }
   ],
   "testaments": [
     {
       "id": "old",
       "name": "구약",
-      "books": [
-        { "id": "gen", "name": "창세기", "chapters": 50 },
-        { "id": "psa", "name": "시편", "chapters": 150 }
-      ]
+      "books": []
     },
     {
       "id": "new",
       "name": "신약",
       "books": [
-        { "id": "john", "name": "요한복음", "chapters": 21 },
-        { "id": "rom", "name": "로마서", "chapters": 16 }
+        {
+          "id": "john",
+          "name": "요한복음",
+          "chapters": 5
+        },
+        {
+          "id": "rom",
+          "name": "로마서",
+          "chapters": 8
+        }
       ]
     }
   ]
