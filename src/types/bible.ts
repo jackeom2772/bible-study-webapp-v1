@@ -1,5 +1,6 @@
 export type ResourceType = 'bible' | 'commentary'
 export type SplitMode = 1 | 2 | 3
+export type ReadingMode = 'single' | 'compare'
 export type ReaderLayout = 'columns' | 'stacked'
 export type AppTabKey = 'home' | 'read' | 'resources' | 'notes' | 'more'
 
@@ -52,6 +53,7 @@ export interface ReaderDisplaySettings {
 
 export interface ReaderState {
   selection: ReaderSelection
+  readingMode: ReadingMode
   splitMode: SplitMode
   layout: ReaderLayout
   isSynced: boolean

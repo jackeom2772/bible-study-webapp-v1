@@ -15,27 +15,29 @@ const tabs: Array<{ key: AppTabKey; label: string }> = [
 
 export function BottomTabs({ activeTab, onChange }: BottomTabsProps) {
   return (
-    <nav className="border-t border-stone-200 bg-white/95 backdrop-blur">
-      <div className="grid grid-cols-5">
-        {tabs.map((tab) => {
-          const isActive = tab.key === activeTab
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-stone-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto max-w-[1680px] px-4 pt-2 pb-[calc(env(safe-area-inset-bottom,0px)+8px)]">
+        <div className="grid grid-cols-5 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-sm">
+          {tabs.map((tab) => {
+            const isActive = tab.key === activeTab
 
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => onChange(tab.key)}
-              className={[
-                'border-r border-stone-200 px-3 py-3 text-sm transition last:border-r-0',
-                isActive
-                  ? 'bg-stone-50 font-semibold text-slate-900'
-                  : 'bg-white text-slate-500 hover:bg-stone-50 hover:text-slate-800',
-              ].join(' ')}
-            >
-              {tab.label}
-            </button>
-          )
-        })}
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => onChange(tab.key)}
+                className={[
+                  'border-r border-stone-200 px-2 py-3 text-xs sm:text-sm transition last:border-r-0',
+                  isActive
+                    ? 'bg-stone-50 font-semibold text-slate-900'
+                    : 'bg-white text-slate-500 hover:bg-stone-50 hover:text-slate-800',
+                ].join(' ')}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
+        </div>
       </div>
     </nav>
   )

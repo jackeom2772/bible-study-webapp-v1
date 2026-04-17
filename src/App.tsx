@@ -15,7 +15,10 @@ import type {
   ManifestTestament,
   ReaderSelection,
   RecentPassage,
+  ReaderLayout,
+  ReadingMode,
   Resource,
+  SplitMode,
 } from './types/bible'
 
 const STORAGE_KEY = 'bible-study-webapp-state'
@@ -31,6 +34,7 @@ const defaultAppState: AppState = {
       chapterNumber: 1,
       verseNumber: 1,
     },
+    readingMode: 'single',
     splitMode: 2,
     layout: 'columns',
     isSynced: true,
@@ -82,7 +86,7 @@ function SurfaceCard({
   children: ReactNode
 }) {
   return (
-    <section className="border border-stone-200 bg-white p-6">
+    <section className="rounded-2xl border border-stone-200 bg-white p-5 sm:p-6">
       <div className="mb-4">
         <h3 className="text-lg font-bold text-slate-900">{title}</h3>
         {description && <p className="mt-1 text-sm text-slate-500">{description}</p>}
@@ -129,6 +133,7 @@ function App() {
   const recentPassages = appState.recentPassages ?? []
 
   const [isCompactLayout, setIsCompactLayout] = useState(false)
+
   useEffect(() => {
     const handleResize = () => {
       setIsCompactLayout(window.innerWidth < 1200)
@@ -138,7 +143,7 @@ function App() {
     window.addEventListener('resize', handleResize)
 
     return () => {
-     window.removeEventListener('resize', handleResize)
+      window.removeEventListener('resize', handleResize)
     }
   }, [])
 
@@ -159,9 +164,7 @@ function App() {
         setManifest(data)
       } catch (err) {
         if (!isMounted) return
-        setError(
-          err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.',
-        )
+        setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.')
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -184,7 +187,12 @@ function App() {
       bookmarks: prev.bookmarks ?? [],
       recentPassages: prev.recentPassages ?? [],
       reader: {
+        ...defaultAppState.reader,
         ...prev.reader,
+        settings: {
+          ...defaultAppState.reader.settings,
+          ...prev.reader.settings,
+        },
         selection: normalizeSelection(manifest, prev.reader.selection),
       },
     }))
@@ -292,10 +300,10 @@ function App() {
     }
   }, [manifest, appState.reader.selection, appState.reader.paneResourceIds])
 
-  const visiblePaneResourceIds = appState.reader.paneResourceIds.slice(
-    0,
-    appState.reader.splitMode,
-  )
+  const effectiveSplitMode =
+    appState.reader.readingMode === 'single' ? 1 : appState.reader.splitMode
+
+  const visiblePaneResourceIds = appState.reader.paneResourceIds.slice(0, effectiveSplitMode)
 
   const verseNumbers = useMemo(() => {
     for (const resourceId of visiblePaneResourceIds) {
@@ -333,7 +341,7 @@ function App() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f5ef] px-4">
-        <div className="border border-stone-200 bg-white px-6 py-5 text-center">
+        <div className="rounded-2xl border border-stone-200 bg-white px-6 py-5 text-center">
           <p className="text-sm font-medium text-slate-500">Bible Study Webapp</p>
           <p className="mt-2 text-lg font-bold text-slate-900">목차를 불러오는 중...</p>
         </div>
@@ -344,7 +352,7 @@ function App() {
   if (error || !manifest) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f7f5ef] px-4">
-        <div className="max-w-md border border-rose-200 bg-white px-6 py-5 text-center">
+        <div className="max-w-md rounded-2xl border border-rose-200 bg-white px-6 py-5 text-center">
           <p className="text-sm font-medium text-rose-500">오류</p>
           <p className="mt-2 text-lg font-bold text-slate-900">
             {error ?? '데이터를 불러오지 못했습니다.'}
@@ -373,10 +381,10 @@ function App() {
   const paneGridStyle =
     appState.reader.layout === 'columns'
       ? {
-          gridTemplateColumns: `repeat(${appState.reader.splitMode}, minmax(0, 1fr))`,
+          gridTemplateColumns: `repeat(${effectiveSplitMode}, minmax(0, 1fr))`,
         }
       : {
-          gridTemplateRows: `repeat(${appState.reader.splitMode}, minmax(0, 1fr))`,
+          gridTemplateRows: `repeat(${effectiveSplitMode}, minmax(0, 1fr))`,
         }
 
   const getResourceById = (resourceId: string): Resource =>
@@ -397,54 +405,68 @@ function App() {
     }))
   }
 
-const handleTestamentChange = (testamentId: string) => {
-  const testament =
-    manifest.testaments.find((item) => item.id === testamentId) ?? manifest.testaments[0]
-  const firstBook = testament.books[0]
+  const closeNavigatorIfCompact = () => {
+    if (!isCompactLayout) return
 
-  setGlobalSelection({
-    testamentId: testament.id,
-    bookId: firstBook.id,
-    chapterNumber: 1,
-    verseNumber: 1,
-  })
+    setAppState((prev) => ({
+      ...prev,
+      bookmarks: prev.bookmarks ?? [],
+      recentPassages: prev.recentPassages ?? [],
+      reader: {
+        ...prev.reader,
+        isNavigatorOpen: false,
+      },
+    }))
+  }
 
-  closeNavigatorIfCompact()
-}
+  const handleTestamentChange = (testamentId: string) => {
+    const testament =
+      manifest.testaments.find((item) => item.id === testamentId) ?? manifest.testaments[0]
+    const firstBook = testament.books[0]
 
-const handleBookChange = (bookId: string) => {
-  const book =
-    selectedTestament.books.find((item) => item.id === bookId) ?? selectedTestament.books[0]
+    setGlobalSelection({
+      testamentId: testament.id,
+      bookId: firstBook.id,
+      chapterNumber: 1,
+      verseNumber: 1,
+    })
 
-  setGlobalSelection({
-    testamentId: selectedTestament.id,
-    bookId: book.id,
-    chapterNumber: 1,
-    verseNumber: 1,
-  })
+    closeNavigatorIfCompact()
+  }
 
-  closeNavigatorIfCompact()
-}
+  const handleBookChange = (bookId: string) => {
+    const book =
+      selectedTestament.books.find((item) => item.id === bookId) ?? selectedTestament.books[0]
 
-const handleChapterChange = (chapterNumber: number) => {
-  setGlobalSelection({
-    testamentId: selectedTestament.id,
-    bookId: selectedBook.id,
-    chapterNumber,
-    verseNumber: 1,
-  })
+    setGlobalSelection({
+      testamentId: selectedTestament.id,
+      bookId: book.id,
+      chapterNumber: 1,
+      verseNumber: 1,
+    })
 
-  closeNavigatorIfCompact()
-}
+    closeNavigatorIfCompact()
+  }
 
-const handleVerseChange = (verseNumber: number) => {
-  setGlobalSelection({
-    ...selection,
-    verseNumber,
-  })
+  const handleChapterChange = (chapterNumber: number) => {
+    setGlobalSelection({
+      testamentId: selectedTestament.id,
+      bookId: selectedBook.id,
+      chapterNumber,
+      verseNumber: 1,
+    })
 
-  closeNavigatorIfCompact()
-}
+    closeNavigatorIfCompact()
+  }
+
+  const handleVerseChange = (verseNumber: number) => {
+    setGlobalSelection({
+      ...selection,
+      verseNumber,
+    })
+
+    closeNavigatorIfCompact()
+  }
 
   const handlePaneVerseChange = (paneIndex: 0 | 1 | 2, verseNumber: number) => {
     setAppState((prev) => {
@@ -539,31 +561,48 @@ const handleVerseChange = (verseNumber: number) => {
     }))
   }
 
-const handleToggleNavigator = () => {
-  setAppState((prev) => ({
-    ...prev,
-    bookmarks: prev.bookmarks ?? [],
-    recentPassages: prev.recentPassages ?? [],
-    reader: {
-      ...prev.reader,
-      isNavigatorOpen: !(prev.reader.isNavigatorOpen ?? false),
-    },
-  }))
-}
+  const handleToggleNavigator = () => {
+    setAppState((prev) => ({
+      ...prev,
+      bookmarks: prev.bookmarks ?? [],
+      recentPassages: prev.recentPassages ?? [],
+      reader: {
+        ...prev.reader,
+        isNavigatorOpen: !(prev.reader.isNavigatorOpen ?? false),
+      },
+    }))
+  }
 
-const closeNavigatorIfCompact = () => {
-  if (!isCompactLayout) return
+  const handleReadingModeChange = (mode: ReadingMode) => {
+    setAppState((prev) => ({
+      ...prev,
+      bookmarks: prev.bookmarks ?? [],
+      recentPassages: prev.recentPassages ?? [],
+      reader: {
+        ...prev.reader,
+        readingMode: mode,
+        splitMode:
+          mode === 'compare'
+            ? prev.reader.splitMode === 1
+              ? 2
+              : prev.reader.splitMode
+            : prev.reader.splitMode,
+      },
+    }))
+  }
 
-  setAppState((prev) => ({
-    ...prev,
-    bookmarks: prev.bookmarks ?? [],
-    recentPassages: prev.recentPassages ?? [],
-    reader: {
-      ...prev.reader,
-      isNavigatorOpen: false,
-    },
-  }))
-}
+  const handleSplitModeChange = (mode: SplitMode) => {
+    setAppState((prev) => ({
+      ...prev,
+      bookmarks: prev.bookmarks ?? [],
+      recentPassages: prev.recentPassages ?? [],
+      reader: {
+        ...prev.reader,
+        readingMode: mode === 1 ? 'single' : 'compare',
+        splitMode: mode === 1 ? prev.reader.splitMode : mode,
+      },
+    }))
+  }
 
   const handlePrevChapter = () => {
     if (selection.chapterNumber <= 1) return
@@ -646,28 +685,28 @@ const closeNavigatorIfCompact = () => {
       <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
         <SurfaceCard
           title="빠른 시작"
-          description="마지막으로 읽던 위치와 현재 레이아웃 정보를 보여줍니다."
+          description="최근 본문과 현재 읽기 설정을 보여줍니다."
         >
           <div className="grid gap-3">
-            <div className="bg-stone-50 p-4">
+            <div className="rounded-2xl bg-stone-50 p-4">
               <p className="text-sm text-slate-500">최근 본문</p>
               <p className="mt-1 text-xl font-bold text-slate-900">{referenceLabel}</p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="border border-stone-200 p-4">
+              <div className="rounded-2xl border border-stone-200 p-4">
+                <p className="text-sm text-slate-500">읽기 방식</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">
+                  {appState.reader.readingMode === 'single' ? '단일 읽기' : '비교 읽기'}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-stone-200 p-4">
                 <p className="text-sm text-slate-500">분할</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">
-                  {appState.reader.splitMode}분할
+                  {effectiveSplitMode}분할
                 </p>
               </div>
-              <div className="border border-stone-200 p-4">
-                <p className="text-sm text-slate-500">레이아웃</p>
-                <p className="mt-1 text-lg font-semibold text-slate-900">
-                  {appState.reader.layout === 'columns' ? '열 보기' : '행 보기'}
-                </p>
-              </div>
-              <div className="border border-stone-200 p-4">
+              <div className="rounded-2xl border border-stone-200 p-4">
                 <p className="text-sm text-slate-500">최근 본문 개수</p>
                 <p className="mt-1 text-lg font-semibold text-slate-900">
                   {recentPassages.length}개
@@ -675,14 +714,14 @@ const closeNavigatorIfCompact = () => {
               </div>
             </div>
 
-            <div className="border border-stone-200 p-4">
+            <div className="rounded-2xl border border-stone-200 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <p className="font-semibold text-slate-900">최근 본문 바로가기</p>
                 {recentPassages.length > 0 && (
                   <button
                     type="button"
                     onClick={handleClearRecentPassages}
-                    className="border border-stone-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-stone-50"
+                    className="rounded-full border border-stone-300 px-3 py-1.5 text-sm text-slate-600 transition hover:bg-stone-50"
                   >
                     비우기
                   </button>
@@ -698,7 +737,7 @@ const closeNavigatorIfCompact = () => {
                       key={item.id}
                       type="button"
                       onClick={() => handleOpenRecent(item)}
-                      className="border border-stone-200 px-4 py-3 text-left transition hover:bg-stone-50"
+                      className="rounded-2xl border border-stone-200 px-4 py-3 text-left transition hover:bg-stone-50"
                     >
                       <p className="font-medium text-slate-900">{item.label}</p>
                       <p className="mt-1 text-sm text-slate-500">
@@ -713,16 +752,15 @@ const closeNavigatorIfCompact = () => {
         </SurfaceCard>
 
         <SurfaceCard
-          title="앱 개요"
-          description="북마크, 최근 본문, 집중 모드를 추가한 버전입니다."
+          title="읽기 화면 v3"
+          description="단일/비교 읽기와 추천 배지를 적용한 버전입니다."
         >
           <div className="space-y-3 text-sm leading-7 text-slate-600">
-            <p>• 본문 중심 레이아웃</p>
-            <p>• 장별 JSON 동적 로딩</p>
-            <p>• 이전 장 / 다음 장 이동</p>
-            <p>• 절 단위 북마크</p>
-            <p>• 최근 본문 자동 저장</p>
-            <p>• 집중 모드</p>
+            <p>• 단일 읽기 / 비교 읽기</p>
+            <p>• 1 / 2 / 3분할 추천 배지</p>
+            <p>• 하단탭 완전 하단 고정</p>
+            <p>• 모바일 탐색 패널 토글</p>
+            <p>• 북마크 / 최근 본문 / 집중 모드</p>
           </div>
         </SurfaceCard>
       </div>
@@ -739,7 +777,7 @@ const closeNavigatorIfCompact = () => {
           {manifest.resources.map((resource) => (
             <div
               key={resource.id}
-              className="flex items-center justify-between border border-stone-200 p-4"
+              className="flex items-center justify-between rounded-2xl border border-stone-200 p-4"
             >
               <div>
                 <p className="font-semibold text-slate-900">{resource.name}</p>
@@ -747,7 +785,7 @@ const closeNavigatorIfCompact = () => {
                   {resource.type === 'commentary' ? '주석 자료' : '본문 자료'}
                 </p>
               </div>
-              <span className="bg-stone-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-slate-600">
                 {resource.id}
               </span>
             </div>
@@ -777,20 +815,18 @@ const closeNavigatorIfCompact = () => {
       <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
         <SurfaceCard
           title="북마크"
-          description="개인 묵상용으로 먼저 북마크 흐름을 만듭니다."
+          description="절 단위 북마크 목록입니다."
         >
           {sortedBookmarks.length === 0 ? (
-            <div className="border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-7 text-slate-600">
+            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-7 text-slate-600">
               아직 북마크가 없습니다.
-              <br />
-              읽기 화면에서 원하는 절을 선택한 뒤 상단의 북마크 버튼을 눌러보세요.
             </div>
           ) : (
             <div className="grid gap-3">
               {sortedBookmarks.map((bookmark) => (
                 <div
                   key={bookmark.id}
-                  className="flex items-center gap-3 border border-stone-200 p-4"
+                  className="flex items-center gap-3 rounded-2xl border border-stone-200 p-4"
                 >
                   <button
                     type="button"
@@ -806,7 +842,7 @@ const closeNavigatorIfCompact = () => {
                   <button
                     type="button"
                     onClick={() => handleRemoveBookmark(bookmark.id)}
-                    className="border border-stone-300 px-3 py-2 text-sm text-slate-600 transition hover:bg-stone-50"
+                    className="rounded-full border border-stone-300 px-3 py-2 text-sm text-slate-600 transition hover:bg-stone-50"
                   >
                     삭제
                   </button>
@@ -821,7 +857,7 @@ const closeNavigatorIfCompact = () => {
           description="읽은 본문이 자동으로 저장됩니다."
         >
           {sortedRecent.length === 0 ? (
-            <div className="border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-7 text-slate-600">
+            <div className="rounded-2xl border border-dashed border-stone-300 bg-stone-50 p-6 text-sm leading-7 text-slate-600">
               아직 최근 본문이 없습니다.
             </div>
           ) : (
@@ -831,7 +867,7 @@ const closeNavigatorIfCompact = () => {
                   key={recent.id}
                   type="button"
                   onClick={() => handleOpenRecent(recent)}
-                  className="border border-stone-200 px-4 py-4 text-left transition hover:bg-stone-50"
+                  className="rounded-2xl border border-stone-200 px-4 py-4 text-left transition hover:bg-stone-50"
                 >
                   <p className="font-semibold text-slate-900">{recent.label}</p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -848,235 +884,53 @@ const closeNavigatorIfCompact = () => {
 
   const renderMoreTab = () => (
     <div className="grid gap-4 lg:grid-cols-2">
-      <SurfaceCard
-        title="앱 정보"
-        description="현재 빌드 상태 요약입니다."
-      >
+      <SurfaceCard title="앱 정보" description="현재 빌드 상태 요약입니다.">
         <div className="grid gap-3 text-sm text-slate-600">
-          <div className="border border-stone-200 p-4">
+          <div className="rounded-2xl border border-stone-200 p-4">
             <p className="font-semibold text-slate-900">앱 이름</p>
             <p className="mt-1">Bible Study Webapp</p>
           </div>
-          <div className="border border-stone-200 p-4">
+          <div className="rounded-2xl border border-stone-200 p-4">
+            <p className="font-semibold text-slate-900">읽기 화면 버전</p>
+            <p className="mt-1">v3</p>
+          </div>
+          <div className="rounded-2xl border border-stone-200 p-4">
             <p className="font-semibold text-slate-900">데이터 방식</p>
             <p className="mt-1">manifest + 장별 JSON</p>
-          </div>
-          <div className="border border-stone-200 p-4">
-            <p className="font-semibold text-slate-900">상태 저장</p>
-            <p className="mt-1">localStorage</p>
           </div>
         </div>
       </SurfaceCard>
 
-      <SurfaceCard
-        title="현재 저장 상태"
-        description="마지막 사용 설정이 브라우저에 저장됩니다."
-      >
+      <SurfaceCard title="현재 저장 상태" description="마지막 사용 설정이 브라우저에 저장됩니다.">
         <div className="space-y-3 text-sm leading-7 text-slate-600">
           <p>• 현재 탭: {appState.activeTab}</p>
           <p>• 현재 본문: {referenceLabel}</p>
-          <p>• 패널 자료: {visiblePaneResourceIds.join(' / ')}</p>
+          <p>• 읽기 방식: {appState.reader.readingMode === 'single' ? '단일 읽기' : '비교 읽기'}</p>
+          <p>• 실제 분할: {effectiveSplitMode}분할</p>
           <p>• 북마크 개수: {bookmarks.length}개</p>
           <p>• 최근 본문 개수: {recentPassages.length}개</p>
-          <p>• 집중 모드: {appState.reader.isFocusMode ? 'ON' : 'OFF'}</p>
           <p>• 장 로딩 상태: {chapterLoading ? '불러오는 중' : '완료'}</p>
         </div>
       </SurfaceCard>
     </div>
   )
 
-const renderReadTab = () => (
-  <div
-    className={[
-      'relative h-full min-h-0 bg-white',
-      isFocusMode
-        ? 'border-0'
-        : 'border border-stone-200',
-    ].join(' ')}
-  >
+  const renderReadTab = () => (
     <div
       className={[
-        'grid h-full min-h-0 bg-white',
-        showDesktopNavigator
-          ? 'grid-cols-[290px_minmax(0,1fr)]'
-          : 'grid-cols-[minmax(0,1fr)]',
+        'relative h-full min-h-0 overflow-hidden rounded-2xl bg-white',
+        isFocusMode ? 'border-0' : 'border border-stone-200',
       ].join(' ')}
     >
-      {showDesktopNavigator && (
-        <SidebarNavigator
-          testaments={manifest.testaments}
-          selection={selection}
-          verseNumbers={verseNumbers}
-          onTestamentChange={handleTestamentChange}
-          onBookChange={handleBookChange}
-          onChapterChange={handleChapterChange}
-          onVerseChange={handleVerseChange}
-        />
-      )}
-
-      <section className="flex min-h-0 min-w-0 flex-col bg-white">
-        <ReaderTopBar
-          referenceLabel={referenceLabel}
-          splitMode={appState.reader.splitMode}
-          layout={appState.reader.layout}
-          isSynced={appState.reader.isSynced}
-          isFocusMode={appState.reader.isFocusMode}
-          isCompactLayout={isCompactLayout}
-          isNavigatorOpen={isNavigatorOpen}
-          paneResourceIds={appState.reader.paneResourceIds}
-          resources={manifest.resources}
-          showResourcePanel={appState.reader.showResourcePanel}
-          showSettingsPanel={appState.reader.showSettingsPanel}
-          settings={appState.reader.settings}
-          canGoPrevChapter={selection.chapterNumber > 1}
-          canGoNextChapter={selection.chapterNumber < selectedBook.chapters}
-          isBookmarked={isBookmarked}
-          onPrevChapter={handlePrevChapter}
-          onNextChapter={handleNextChapter}
-          onToggleBookmark={handleToggleBookmark}
-          onToggleFocusMode={handleToggleFocusMode}
-          onToggleNavigator={handleToggleNavigator}
-          onSplitModeChange={(mode) =>
-            setAppState((prev) => ({
-              ...prev,
-              bookmarks: prev.bookmarks ?? [],
-              recentPassages: prev.recentPassages ?? [],
-              reader: {
-                ...prev.reader,
-                splitMode: mode,
-              },
-            }))
-          }
-          onLayoutChange={(layout) =>
-            setAppState((prev) => ({
-              ...prev,
-              bookmarks: prev.bookmarks ?? [],
-              recentPassages: prev.recentPassages ?? [],
-              reader: {
-                ...prev.reader,
-                layout,
-              },
-            }))
-          }
-          onToggleSync={() =>
-            setAppState((prev) => {
-              const nextIsSynced = !prev.reader.isSynced
-              return {
-                ...prev,
-                bookmarks: prev.bookmarks ?? [],
-                recentPassages: prev.recentPassages ?? [],
-                reader: {
-                  ...prev.reader,
-                  isSynced: nextIsSynced,
-                  paneVerseNumbers: nextIsSynced
-                    ? repeatVerse(prev.reader.selection.verseNumber)
-                    : prev.reader.paneVerseNumbers,
-                },
-              }
-            })
-          }
-          onToggleResourcePanel={() =>
-            setAppState((prev) => ({
-              ...prev,
-              bookmarks: prev.bookmarks ?? [],
-              recentPassages: prev.recentPassages ?? [],
-              reader: {
-                ...prev.reader,
-                showResourcePanel: !prev.reader.showResourcePanel,
-                showSettingsPanel: false,
-              },
-            }))
-          }
-          onToggleSettingsPanel={() =>
-            setAppState((prev) => ({
-              ...prev,
-              bookmarks: prev.bookmarks ?? [],
-              recentPassages: prev.recentPassages ?? [],
-              reader: {
-                ...prev.reader,
-                showSettingsPanel: !prev.reader.showSettingsPanel,
-                showResourcePanel: false,
-              },
-            }))
-          }
-          onPaneResourceChange={(index, resourceId) =>
-            setAppState((prev) => {
-              const nextPaneResourceIds = [...prev.reader.paneResourceIds] as [
-                string,
-                string,
-                string,
-              ]
-              nextPaneResourceIds[index] = resourceId
-
-              return {
-                ...prev,
-                bookmarks: prev.bookmarks ?? [],
-                recentPassages: prev.recentPassages ?? [],
-                reader: {
-                  ...prev.reader,
-                  paneResourceIds: nextPaneResourceIds,
-                },
-              }
-            })
-          }
-          onSettingsChange={(nextSettings) =>
-            setAppState((prev) => ({
-              ...prev,
-              bookmarks: prev.bookmarks ?? [],
-              recentPassages: prev.recentPassages ?? [],
-              reader: {
-                ...prev.reader,
-                settings: {
-                  ...prev.reader.settings,
-                  ...nextSettings,
-                },
-              },
-            }))
-          }
-        />
-
-        <div
-          className={[
-            'grid min-h-0 flex-1 gap-[1px] bg-stone-200',
-            isFocusMode ? 'p-0' : '',
-          ].join(' ')}
-          style={paneGridStyle}
-        >
-          {visiblePaneResourceIds.map((resourceId, index) => {
-            const paneIndex = index as 0 | 1 | 2
-            const resource = getResourceById(resourceId)
-            const verses = chapterMap[resourceId]?.verses ?? []
-            const selectedVerseNumber = appState.reader.isSynced
-              ? selection.verseNumber
-              : appState.reader.paneVerseNumbers[paneIndex]
-
-            return (
-              <div key={`${resource.id}-${paneIndex}`} className="min-h-0 bg-white">
-                <ReaderPane
-                  resource={resource}
-                  verses={verses}
-                  selectedVerseNumber={selectedVerseNumber}
-                  onSelectVerse={(verseNumber) =>
-                    handlePaneVerseChange(paneIndex, verseNumber)
-                  }
-                  settings={appState.reader.settings}
-                />
-              </div>
-            )
-          })}
-        </div>
-      </section>
-    </div>
-
-    {showCompactNavigator && isNavigatorOpen && (
-      <>
-        <button
-          type="button"
-          aria-label="탐색 패널 닫기"
-          onClick={handleToggleNavigator}
-          className="absolute inset-0 z-20 bg-black/30"
-        />
-        <div className="absolute inset-y-0 left-0 z-30 w-[290px] max-w-[86vw] bg-[#fcfbf7] shadow-2xl">
+      <div
+        className={[
+          'grid h-full min-h-0 bg-white',
+          showDesktopNavigator
+            ? 'grid-cols-[290px_minmax(0,1fr)]'
+            : 'grid-cols-[minmax(0,1fr)]',
+        ].join(' ')}
+      >
+        {showDesktopNavigator && (
           <SidebarNavigator
             testaments={manifest.testaments}
             selection={selection}
@@ -1086,11 +940,174 @@ const renderReadTab = () => (
             onChapterChange={handleChapterChange}
             onVerseChange={handleVerseChange}
           />
-        </div>
-      </>
-    )}
-  </div>
-)
+        )}
+
+        <section className="flex min-h-0 min-w-0 flex-col bg-white">
+          <ReaderTopBar
+            referenceLabel={referenceLabel}
+            readingMode={appState.reader.readingMode}
+            splitMode={appState.reader.splitMode}
+            layout={appState.reader.layout}
+            isSynced={appState.reader.isSynced}
+            isFocusMode={appState.reader.isFocusMode}
+            isCompactLayout={isCompactLayout}
+            isNavigatorOpen={isNavigatorOpen}
+            paneResourceIds={appState.reader.paneResourceIds}
+            resources={manifest.resources}
+            showResourcePanel={appState.reader.showResourcePanel}
+            showSettingsPanel={appState.reader.showSettingsPanel}
+            settings={appState.reader.settings}
+            canGoPrevChapter={selection.chapterNumber > 1}
+            canGoNextChapter={selection.chapterNumber < selectedBook.chapters}
+            isBookmarked={isBookmarked}
+            onPrevChapter={handlePrevChapter}
+            onNextChapter={handleNextChapter}
+            onToggleBookmark={handleToggleBookmark}
+            onToggleFocusMode={handleToggleFocusMode}
+            onToggleNavigator={handleToggleNavigator}
+            onReadingModeChange={handleReadingModeChange}
+            onSplitModeChange={handleSplitModeChange}
+            onLayoutChange={(layout: ReaderLayout) =>
+              setAppState((prev) => ({
+                ...prev,
+                bookmarks: prev.bookmarks ?? [],
+                recentPassages: prev.recentPassages ?? [],
+                reader: {
+                  ...prev.reader,
+                  layout,
+                },
+              }))
+            }
+            onToggleSync={() =>
+              setAppState((prev) => {
+                const nextIsSynced = !prev.reader.isSynced
+                return {
+                  ...prev,
+                  bookmarks: prev.bookmarks ?? [],
+                  recentPassages: prev.recentPassages ?? [],
+                  reader: {
+                    ...prev.reader,
+                    isSynced: nextIsSynced,
+                    paneVerseNumbers: nextIsSynced
+                      ? repeatVerse(prev.reader.selection.verseNumber)
+                      : prev.reader.paneVerseNumbers,
+                  },
+                }
+              })
+            }
+            onToggleResourcePanel={() =>
+              setAppState((prev) => ({
+                ...prev,
+                bookmarks: prev.bookmarks ?? [],
+                recentPassages: prev.recentPassages ?? [],
+                reader: {
+                  ...prev.reader,
+                  showResourcePanel: !prev.reader.showResourcePanel,
+                  showSettingsPanel: false,
+                },
+              }))
+            }
+            onToggleSettingsPanel={() =>
+              setAppState((prev) => ({
+                ...prev,
+                bookmarks: prev.bookmarks ?? [],
+                recentPassages: prev.recentPassages ?? [],
+                reader: {
+                  ...prev.reader,
+                  showSettingsPanel: !prev.reader.showSettingsPanel,
+                  showResourcePanel: false,
+                },
+              }))
+            }
+            onPaneResourceChange={(index, resourceId) =>
+              setAppState((prev) => {
+                const nextPaneResourceIds = [...prev.reader.paneResourceIds] as [
+                  string,
+                  string,
+                  string,
+                ]
+                nextPaneResourceIds[index] = resourceId
+
+                return {
+                  ...prev,
+                  bookmarks: prev.bookmarks ?? [],
+                  recentPassages: prev.recentPassages ?? [],
+                  reader: {
+                    ...prev.reader,
+                    paneResourceIds: nextPaneResourceIds,
+                  },
+                }
+              })
+            }
+            onSettingsChange={(nextSettings) =>
+              setAppState((prev) => ({
+                ...prev,
+                bookmarks: prev.bookmarks ?? [],
+                recentPassages: prev.recentPassages ?? [],
+                reader: {
+                  ...prev.reader,
+                  settings: {
+                    ...prev.reader.settings,
+                    ...nextSettings,
+                  },
+                },
+              }))
+            }
+          />
+
+          <div
+            className="grid min-h-0 flex-1 gap-[1px] bg-stone-200"
+            style={paneGridStyle}
+          >
+            {visiblePaneResourceIds.map((resourceId, index) => {
+              const paneIndex = index as 0 | 1 | 2
+              const resource = getResourceById(resourceId)
+              const verses = chapterMap[resourceId]?.verses ?? []
+              const selectedVerseNumber = appState.reader.isSynced
+                ? selection.verseNumber
+                : appState.reader.paneVerseNumbers[paneIndex]
+
+              return (
+                <div key={`${resource.id}-${paneIndex}`} className="min-h-0 bg-white">
+                  <ReaderPane
+                    resource={resource}
+                    verses={verses}
+                    selectedVerseNumber={selectedVerseNumber}
+                    onSelectVerse={(verseNumber: number) =>
+                      handlePaneVerseChange(paneIndex, verseNumber)
+                    }
+                    settings={appState.reader.settings}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      </div>
+
+      {showCompactNavigator && isNavigatorOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="탐색 패널 닫기"
+            onClick={handleToggleNavigator}
+            className="absolute inset-0 z-20 bg-black/30"
+          />
+          <div className="absolute inset-y-0 left-0 z-30 w-[290px] max-w-[86vw] bg-[#fcfbf7] shadow-2xl">
+            <SidebarNavigator
+              testaments={manifest.testaments}
+              selection={selection}
+              verseNumbers={verseNumbers}
+              onTestamentChange={handleTestamentChange}
+              onBookChange={handleBookChange}
+              onChapterChange={handleChapterChange}
+              onVerseChange={handleVerseChange}
+            />
+          </div>
+        </>
+      )}
+    </div>
+  )
 
   const renderActiveTab = (tab: AppTabKey) => {
     switch (tab) {
@@ -1111,11 +1128,11 @@ const renderReadTab = () => (
 
   return (
     <div className="min-h-screen bg-[#f7f5ef] text-slate-900">
-      <div className="mx-auto flex h-screen max-w-[1680px] flex-col">
+      <div className="mx-auto flex min-h-screen max-w-[1680px] flex-col">
         {!isFocusMode && (
           <header className="border-b border-stone-200 bg-white">
-            <div className="px-6 py-3">
-              <div className="flex flex-wrap items-center gap-6">
+            <div className="px-4 py-3 sm:px-6">
+              <div className="flex flex-wrap items-center gap-4">
                 <div className="mr-auto">
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-400">
                     Bible Reading
@@ -1125,24 +1142,21 @@ const renderReadTab = () => (
                   </h1>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="border border-stone-300 px-3 py-1.5 text-slate-600">
+                <div className="hidden flex-wrap items-center gap-2 text-sm lg:flex">
+                  <span className="rounded-full border border-stone-300 px-3 py-1.5 text-slate-600">
                     홈
                   </span>
-                  <span className="border border-stone-300 bg-stone-50 px-3 py-1.5 font-semibold text-slate-900">
+                  <span className="rounded-full border border-stone-300 bg-stone-50 px-3 py-1.5 font-semibold text-slate-900">
                     성경읽기
                   </span>
-                  <span className="border border-stone-300 px-3 py-1.5 text-slate-600">
-                    대역읽기
+                  <span className="rounded-full border border-stone-300 px-3 py-1.5 text-slate-600">
+                    비교
                   </span>
-                  <span className="border border-stone-300 px-3 py-1.5 text-slate-600">
-                    책선택
+                  <span className="rounded-full border border-stone-300 px-3 py-1.5 text-slate-600">
+                    자료
                   </span>
-                  <span className="border border-stone-300 px-3 py-1.5 text-slate-600">
-                    구절비교
-                  </span>
-                  <span className="border border-stone-300 px-3 py-1.5 text-slate-600">
-                    통합검색
+                  <span className="rounded-full border border-stone-300 px-3 py-1.5 text-slate-600">
+                    기록
                   </span>
                 </div>
               </div>
@@ -1150,7 +1164,12 @@ const renderReadTab = () => (
           </header>
         )}
 
-        <main className={['min-h-0 flex-1', isFocusMode ? 'p-0' : 'p-4'].join(' ')}>
+        <main
+          className={[
+            'flex-1 min-h-0',
+            isFocusMode ? 'p-0' : 'px-4 pt-4 pb-28',
+          ].join(' ')}
+        >
           {renderActiveTab(appState.activeTab)}
         </main>
 
