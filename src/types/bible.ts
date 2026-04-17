@@ -33,9 +33,13 @@ export interface ChapterTextVerse {
 }
 
 export interface ChapterTextData {
-  bookId: string
   chapterNumber: number
   verses: ChapterTextVerse[]
+}
+
+export interface BookTextData {
+  bookId: string
+  chapters: ChapterTextData[]
 }
 
 export interface ReaderSelection {

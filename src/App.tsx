@@ -9,14 +9,14 @@ import type {
   AppState,
   AppTabKey,
   Bookmark,
-  ChapterTextData,
+  BookTextData,
   ManifestBook,
   ManifestData,
   ManifestTestament,
-  ReaderSelection,
-  RecentPassage,
   ReaderLayout,
+  ReaderSelection,
   ReadingMode,
+  RecentPassage,
   Resource,
   SplitMode,
 } from './types/bible'
@@ -119,9 +119,9 @@ function normalizeSelection(manifest: ManifestData, selection: ReaderSelection) 
 
 function App() {
   const [manifest, setManifest] = useState<ManifestData | null>(null)
-  const [chapterMap, setChapterMap] = useState<Record<string, ChapterTextData>>({})
+  const [bookMap, setBookMap] = useState<Record<string, BookTextData>>({})
   const [loading, setLoading] = useState(true)
-  const [chapterLoading, setChapterLoading] = useState(false)
+  const [bookLoading, setBookLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [appState, setAppState] = useLocalStorageState<AppState>(
@@ -241,19 +241,17 @@ function App() {
   }, [manifest, appState.reader.selection, setAppState])
 
   useEffect(() => {
-    if (!manifest) return
-
-    const selection = normalizeSelection(manifest, appState.reader.selection)
+    const bookId = appState.reader.selection.bookId
     const resourceIds = Array.from(new Set(appState.reader.paneResourceIds))
 
     let isMounted = true
-    setChapterLoading(true)
+    setBookLoading(true)
 
-    const loadChapters = async () => {
+    const loadBooks = async () => {
       try {
         const entries = await Promise.all(
           resourceIds.map(async (resourceId) => {
-            const path = `${import.meta.env.BASE_URL}data/texts/${resourceId}/${selection.bookId}/${selection.chapterNumber}.json`
+            const path = `${import.meta.env.BASE_URL}data/texts/${resourceId}/${bookId}.json`
 
             try {
               const response = await fetch(path)
@@ -262,43 +260,41 @@ function App() {
                 return [
                   resourceId,
                   {
-                    bookId: selection.bookId,
-                    chapterNumber: selection.chapterNumber,
-                    verses: [],
-                  } satisfies ChapterTextData,
+                    bookId,
+                    chapters: [],
+                  } satisfies BookTextData,
                 ] as const
               }
 
-              const data = (await response.json()) as ChapterTextData
+              const data = (await response.json()) as BookTextData
               return [resourceId, data] as const
             } catch {
               return [
                 resourceId,
                 {
-                  bookId: selection.bookId,
-                  chapterNumber: selection.chapterNumber,
-                  verses: [],
-                } satisfies ChapterTextData,
+                  bookId,
+                  chapters: [],
+                } satisfies BookTextData,
               ] as const
             }
           }),
         )
 
         if (!isMounted) return
-        setChapterMap(Object.fromEntries(entries))
+        setBookMap(Object.fromEntries(entries))
       } finally {
         if (isMounted) {
-          setChapterLoading(false)
+          setBookLoading(false)
         }
       }
     }
 
-    loadChapters()
+    loadBooks()
 
     return () => {
       isMounted = false
     }
-  }, [manifest, appState.reader.selection, appState.reader.paneResourceIds])
+  }, [appState.reader.selection.bookId, appState.reader.paneResourceIds])
 
   const effectiveSplitMode =
     appState.reader.readingMode === 'single' ? 1 : appState.reader.splitMode
@@ -306,14 +302,25 @@ function App() {
   const visiblePaneResourceIds = appState.reader.paneResourceIds.slice(0, effectiveSplitMode)
 
   const verseNumbers = useMemo(() => {
+    const currentChapterNumber = appState.reader.selection.chapterNumber
+
     for (const resourceId of visiblePaneResourceIds) {
-      const verses = chapterMap[resourceId]?.verses ?? []
+      const verses =
+        bookMap[resourceId]?.chapters.find(
+          (chapter) => chapter.chapterNumber === currentChapterNumber,
+        )?.verses ?? []
+
       if (verses.length > 0) {
         return verses.map((verse) => verse.number)
       }
     }
+
     return []
-  }, [chapterMap, visiblePaneResourceIds])
+  }, [
+    appState.reader.selection.chapterNumber,
+    bookMap,
+    visiblePaneResourceIds,
+  ])
 
   useEffect(() => {
     if (verseNumbers.length === 0) return
@@ -752,15 +759,14 @@ function App() {
         </SurfaceCard>
 
         <SurfaceCard
-          title="읽기 화면 v3"
-          description="단일/비교 읽기와 추천 배지를 적용한 버전입니다."
+          title="책별 JSON 구조"
+          description="이제 한 권당 파일 1개만 관리합니다."
         >
           <div className="space-y-3 text-sm leading-7 text-slate-600">
-            <p>• 단일 읽기 / 비교 읽기</p>
-            <p>• 1 / 2 / 3분할 추천 배지</p>
-            <p>• 하단탭 완전 하단 고정</p>
-            <p>• 모바일 탐색 패널 토글</p>
-            <p>• 북마크 / 최근 본문 / 집중 모드</p>
+            <p>• 예전: john/1.json, john/2.json, john/3.json...</p>
+            <p>• 변경: john.json 하나에 모든 장 포함</p>
+            <p>• 장 이동 시 다시 fetch하지 않고, 같은 책 안에서 장만 바꿉니다.</p>
+            <p>• 데이터 넣기가 훨씬 쉬워집니다.</p>
           </div>
         </SurfaceCard>
       </div>
@@ -794,14 +800,14 @@ function App() {
       </SurfaceCard>
 
       <SurfaceCard
-        title="데이터 구조"
-        description="전권 확장을 위한 구조입니다."
+        title="새 데이터 구조"
+        description="책별 JSON 구조입니다."
       >
         <div className="space-y-3 text-sm leading-7 text-slate-600">
-          <p>• `public/data/manifest.json`</p>
-          <p>• `public/data/texts/krv/책ID/장번호.json`</p>
-          <p>• `public/data/texts/easy/책ID/장번호.json`</p>
-          <p>• `public/data/texts/mcd/책ID/장번호.json`</p>
+          <p>• `public/data/texts/krv/john.json`</p>
+          <p>• `public/data/texts/easy/john.json`</p>
+          <p>• `public/data/texts/mcd/john.json`</p>
+          <p>• 각 파일 안에 여러 장이 함께 들어갑니다.</p>
         </div>
       </SurfaceCard>
     </div>
@@ -892,11 +898,11 @@ function App() {
           </div>
           <div className="rounded-2xl border border-stone-200 p-4">
             <p className="font-semibold text-slate-900">읽기 화면 버전</p>
-            <p className="mt-1">v3</p>
+            <p className="mt-1">v3 + 책별 JSON</p>
           </div>
           <div className="rounded-2xl border border-stone-200 p-4">
             <p className="font-semibold text-slate-900">데이터 방식</p>
-            <p className="mt-1">manifest + 장별 JSON</p>
+            <p className="mt-1">manifest + 책별 JSON</p>
           </div>
         </div>
       </SurfaceCard>
@@ -909,7 +915,7 @@ function App() {
           <p>• 실제 분할: {effectiveSplitMode}분할</p>
           <p>• 북마크 개수: {bookmarks.length}개</p>
           <p>• 최근 본문 개수: {recentPassages.length}개</p>
-          <p>• 장 로딩 상태: {chapterLoading ? '불러오는 중' : '완료'}</p>
+          <p>• 책 로딩 상태: {bookLoading ? '불러오는 중' : '완료'}</p>
         </div>
       </SurfaceCard>
     </div>
@@ -1062,7 +1068,11 @@ function App() {
             {visiblePaneResourceIds.map((resourceId, index) => {
               const paneIndex = index as 0 | 1 | 2
               const resource = getResourceById(resourceId)
-              const verses = chapterMap[resourceId]?.verses ?? []
+              const verses =
+                bookMap[resourceId]?.chapters.find(
+                  (chapter) => chapter.chapterNumber === selection.chapterNumber,
+                )?.verses ?? []
+
               const selectedVerseNumber = appState.reader.isSynced
                 ? selection.verseNumber
                 : appState.reader.paneVerseNumbers[paneIndex]
