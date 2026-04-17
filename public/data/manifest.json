@@ -27,14 +27,139 @@
       "name": "신약",
       "books": [
         {
+          "id": "matt",
+          "name": "마태복음",
+          "chapters": 28
+        },
+        {
+          "id": "mark",
+          "name": "마가복음",
+          "chapters": 16
+        },
+        {
+          "id": "luke",
+          "name": "누가복음",
+          "chapters": 24
+        },
+        {
           "id": "john",
           "name": "요한복음",
-          "chapters": 5
+          "chapters": 21
+        },
+        {
+          "id": "acts",
+          "name": "사도행전",
+          "chapters": 28
         },
         {
           "id": "rom",
           "name": "로마서",
-          "chapters": 8
+          "chapters": 16
+        },
+        {
+          "id": "1cor",
+          "name": "고린도전서",
+          "chapters": 16
+        },
+        {
+          "id": "2cor",
+          "name": "고린도후서",
+          "chapters": 13
+        },
+        {
+          "id": "gal",
+          "name": "갈라디아서",
+          "chapters": 6
+        },
+        {
+          "id": "eph",
+          "name": "에베소서",
+          "chapters": 6
+        },
+        {
+          "id": "phil",
+          "name": "빌립보서",
+          "chapters": 4
+        },
+        {
+          "id": "col",
+          "name": "골로새서",
+          "chapters": 4
+        },
+        {
+          "id": "1thess",
+          "name": "데살로니가전서",
+          "chapters": 5
+        },
+        {
+          "id": "2thess",
+          "name": "데살로니가후서",
+          "chapters": 3
+        },
+        {
+          "id": "1tim",
+          "name": "디모데전서",
+          "chapters": 6
+        },
+        {
+          "id": "2tim",
+          "name": "디모데후서",
+          "chapters": 4
+        },
+        {
+          "id": "titus",
+          "name": "디도서",
+          "chapters": 3
+        },
+        {
+          "id": "phlm",
+          "name": "빌레몬서",
+          "chapters": 1
+        },
+        {
+          "id": "heb",
+          "name": "히브리서",
+          "chapters": 13
+        },
+        {
+          "id": "james",
+          "name": "야고보서",
+          "chapters": 5
+        },
+        {
+          "id": "1pet",
+          "name": "베드로전서",
+          "chapters": 5
+        },
+        {
+          "id": "2pet",
+          "name": "베드로후서",
+          "chapters": 3
+        },
+        {
+          "id": "1john",
+          "name": "요한1서",
+          "chapters": 5
+        },
+        {
+          "id": "2john",
+          "name": "요한2서",
+          "chapters": 1
+        },
+        {
+          "id": "3john",
+          "name": "요한3서",
+          "chapters": 1
+        },
+        {
+          "id": "jude",
+          "name": "유다서",
+          "chapters": 1
+        },
+        {
+          "id": "rev",
+          "name": "요한계시록",
+          "chapters": 22
         }
       ]
     }

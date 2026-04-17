@@ -20,24 +20,42 @@ async function fileExists(targetPath) {
   }
 }
 
+function getMaxChapterNumberFromChapters(chapters) {
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    return 0
+  }
+
+  return Math.max(...chapters.map((chapter) => Number(chapter.chapterNumber) || 0))
+}
+
 function normalizeBook(book) {
+  const normalizedChapters = Array.isArray(book.chapters)
+    ? book.chapters
+        .map((chapter) => ({
+          chapterNumber: Number(chapter.chapterNumber),
+          verses: Array.isArray(chapter.verses)
+            ? chapter.verses.map((verse) => ({
+                number: Number(verse.number),
+                text: String(verse.text ?? ''),
+              }))
+            : [],
+        }))
+        .filter((chapter) => Number.isFinite(chapter.chapterNumber))
+        .sort((a, b) => a.chapterNumber - b.chapterNumber)
+    : []
+
+  const explicitChapterCount = Number(book.chapterCount)
+  const computedChapterCount = getMaxChapterNumberFromChapters(normalizedChapters)
+
   return {
     id: String(book.id),
     name: String(book.name),
     testamentId: book.testamentId === 'old' ? 'old' : 'new',
-    chapters: Array.isArray(book.chapters)
-      ? book.chapters
-          .map((chapter) => ({
-            chapterNumber: Number(chapter.chapterNumber),
-            verses: Array.isArray(chapter.verses)
-              ? chapter.verses.map((verse) => ({
-                  number: Number(verse.number),
-                  text: String(verse.text ?? ''),
-                }))
-              : [],
-          }))
-          .filter((chapter) => Number.isFinite(chapter.chapterNumber))
-      : [],
+    chapterCount:
+      Number.isFinite(explicitChapterCount) && explicitChapterCount > 0
+        ? explicitChapterCount
+        : computedChapterCount,
+    chapters: normalizedChapters,
   }
 }
 
@@ -81,21 +99,13 @@ async function readMasterFiles() {
   return masters
 }
 
-function getMaxChapterNumber(book) {
-  if (!Array.isArray(book.chapters) || book.chapters.length === 0) {
-    return 0
-  }
-
-  return Math.max(...book.chapters.map((chapter) => Number(chapter.chapterNumber) || 0))
-}
-
 function buildManifestFromMaster(primaryMaster, resources) {
   const oldBooks = primaryMaster.books
     .filter((book) => book.testamentId === 'old')
     .map((book) => ({
       id: book.id,
       name: book.name,
-      chapters: getMaxChapterNumber(book),
+      chapters: book.chapterCount,
     }))
 
   const newBooks = primaryMaster.books
@@ -103,7 +113,7 @@ function buildManifestFromMaster(primaryMaster, resources) {
     .map((book) => ({
       id: book.id,
       name: book.name,
-      chapters: getMaxChapterNumber(book),
+      chapters: book.chapterCount,
     }))
 
   return {
